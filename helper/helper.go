@@ -56,7 +56,7 @@ func (c *config) Start() {
 	if len(c.Outfile) > 0 {
 		filename = c.Outfile
 	}
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0755)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	errHandle(err, "创建文件失败")
 	defer file.Close()
 	write := bufio.NewWriter(file)
@@ -75,7 +75,10 @@ func (c *config) Start() {
 	ignores := arrayToMap(c.Ignores) //不导出数据的表
 
 	write.WriteString("SET FOREIGN_KEY_CHECKS=0;\n\n")
-	for _, tab := range tables {
+	count := len(tables)
+
+	for index, tab := range tables {
+		log.Printf("(%v/%v) %s \n", index+1, count, tab)
 		_, ok := eTables[tab]
 		if !ok {
 			continue
@@ -121,7 +124,7 @@ func (c *config) Start() {
 
 func GetTables(db *sql.DB, dbname string) []string {
 
-	ret := find(db, "show tables from "+dbname)
+	ret := find(db, fmt.Sprintf("show tables from `%s`", dbname))
 
 	result := []string{}
 	for _, v := range *ret {
@@ -133,8 +136,7 @@ func GetTables(db *sql.DB, dbname string) []string {
 }
 
 func GetCreateTable(db *sql.DB, table string) string {
-	sql := "show create table " + table
-	ret := find(db, sql)
+	ret := find(db, fmt.Sprintf("show create table `%s`", table))
 	// fmt.Printf("%+v", ret)
 	if len(*ret) > 0 {
 		return (*ret)[0]["Create Table"]
@@ -143,9 +145,7 @@ func GetCreateTable(db *sql.DB, table string) string {
 }
 
 func GetRowsCount(db *sql.DB, table string) int64 {
-	sql := "select count(*) as aggregate from " + table
-
-	ret := find(db, sql)
+	ret := find(db, fmt.Sprintf("select count(*) as aggregate from `%s`", table))
 	if len(*ret) > 0 {
 		tmp, ok := (*ret)[0]["aggregate"]
 		if ok {
@@ -158,7 +158,7 @@ func GetRowsCount(db *sql.DB, table string) int64 {
 }
 
 func GetData(db *sql.DB, table string, limit, offset int) *[]string {
-	sql := fmt.Sprintf("select * from %s limit %v offset %v", table, limit, offset)
+	sql := fmt.Sprintf("select * from `%s` limit %v offset %v", table, limit, offset)
 	result, err := db.Query(sql)
 	errHandle(err, "查询数据发生错误")
 	cols, _ := result.Columns()
@@ -207,8 +207,13 @@ func GetData(db *sql.DB, table string, limit, offset int) *[]string {
 func parse(str string) string {
 	ret := []rune{}
 	for _, s := range str {
-		if s == '\'' {
-			if ret[len(ret)-1] != '\\' {
+		if s == '\'' || s == '\\' {
+			len := len(ret)
+			if len > 0 {
+				if ret[len-1] != '\\' {
+					ret = append(ret, '\\')
+				}
+			} else {
 				ret = append(ret, '\\')
 			}
 		}

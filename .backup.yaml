@@ -2,11 +2,8 @@ host: localhost
 port: 3306
 user: root
 password: 123456
-database: kuerp
+database: test
 tables: 
-  - admin
-  - admin_log
-ignores: 
-  - admin_log
-outfile: kuerp.sql
-limit: 500
+ignores:   
+outfile: test.sql
+limit: 2000
