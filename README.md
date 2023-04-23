@@ -8,6 +8,9 @@ port: 3306
 user: root
 password: 123456
 database: test
+tables:  # 将要导出的表，为空表示全部
+  - admin
+  - admin_log
 ignores:  # 不导出数据的表，但是会导出结构
   - admin_log
 outfile: test.sql # 输出文件

@@ -61,23 +61,25 @@ func (c *config) Start() {
 	defer file.Close()
 	write := bufio.NewWriter(file)
 	write.WriteString(fmt.Sprintf("-- Host: %s     Database: %s \n", c.Host, c.Schema))
-	write.WriteString(fmt.Sprintf("-- Date: %s     Support: %s \n\n\n", time.Now().Format("2006-01-02 15:04:05"), "ysfzf@hotmail.com"))
+	write.WriteString(fmt.Sprintf("-- Date: %s     Support: %s \n\n\n", time.Now().Format("2006-01-02 15:04:05"), "https://github.com/mynameisfzf/bk-mysql"))
 
 	tables := GetTables(db, c.Schema)
-	checkType := 0 //不检测是否备份数据
-	cktables := checkTable{}
-	if len(c.Ignores) > 0 {
-		checkType = 2
-		cktables = arrayToMap(c.Ignores)
+
+	var eTables checkTable
+	if len(c.Tables) > 0 {
+		eTables = arrayToMap(c.Tables) //要导出的表
 	} else {
-		if len(c.Tables) > 0 {
-			checkType = 1
-			cktables = arrayToMap(c.Tables)
-		}
+		eTables = arrayToMap(tables)
 	}
+
+	ignores := arrayToMap(c.Ignores) //不导出数据的表
 
 	write.WriteString("SET FOREIGN_KEY_CHECKS=0;\n\n")
 	for _, tab := range tables {
+		_, ok := eTables[tab]
+		if !ok {
+			continue
+		}
 		run := true
 		offset := 0
 		createTable := GetCreateTable(db, tab)
@@ -90,24 +92,13 @@ func (c *config) Start() {
 
 		write.WriteString(fmt.Sprintf("DROP TABLE IF EXISTS `%s`;\n", tab))
 		write.WriteString(fmt.Sprintf("%s;\n\n\n", createTable))
-		if checkType == 2 {
-			//是否在排除列表中
-			_, ok := cktables[tab]
-			if ok {
-				continue
-			}
-		} else {
-			if checkType == 1 {
-				//是否在充许列表中
-				_, ok := cktables[tab]
-				if !ok {
-					continue
-				}
-			}
+
+		_, ok = ignores[tab]
+		if ok {
+			continue
 		}
 		count := GetRowsCount(db, tab)
 		if count > 0 {
-			// write.WriteString(fmt.Sprintf("LOCK TABLES `%s` WRITE;\n", tab))
 			for run {
 				data := GetData(db, tab, c.Limit, offset)
 				str := strings.Join(*data, ",")
@@ -119,8 +110,6 @@ func (c *config) Start() {
 				}
 
 			}
-			// write.WriteString("UNLOCK TABLES;\n\n\n")
-
 			write.WriteString("\n\n\n\n")
 
 		}
